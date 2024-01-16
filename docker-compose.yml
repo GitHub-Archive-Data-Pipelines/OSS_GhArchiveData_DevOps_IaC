@@ -1,0 +1,92 @@
+version: '3.9'
+services:
+
+  minio:
+    hostname: minio
+    container_name: minio
+    image: 'minio/minio:latest'
+    ports:
+      - '${FORWARD_MINIO_PORT:-9000}:9000'
+      - '${FORWARD_MINIO_CONSOLE_PORT:-9090}:9090'
+    environment:
+      MINIO_ROOT_USER: 'minio_access_key'
+      MINIO_ROOT_PASSWORD: 'minio_secret_key'
+    command: minio server /data/minio --console-address ":9090"
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+
+  minio-init-buckets:
+    image: minio/mc:latest
+    tty: true 
+    depends_on:
+      - minio
+    entrypoint: > 
+        /bin/sh -c "
+        /usr/bin/mc alias set local http://minio:9000 minio_access_key minio_secret_key;
+        /usr/bin/mc mb --ignore-existing local/gh-archive-data-raw;
+        /usr/bin/mc mb --ignore-existing local/gh-archive-data-curated;
+        /usr/bin/mc mb --ignore-existing local/gh-archive-data-analytics;
+        " 
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+
+  mysql:
+    hostname: mysql
+    image: mysql:latest
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      MYSQL_DATABASE: metastore_db
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+
+  hive-metastore:
+    hostname: hive-metastore
+    image: 'bitsondatadev/hive-metastore:latest'
+    ports:
+      - '9083:9083' # Metastore Thrift
+    volumes:
+      - ./conf/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
+    environment:
+      METASTORE_DB_HOSTNAME: mysql
+    depends_on:
+      - mysql
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+      
+  hiveserver2:
+    image: apache/hive:4.0.0-alpha-2
+    depends_on:
+      - hive-metastore
+    restart: unless-stopped
+    environment:
+      HIVE_SERVER2_THRIFT_PORT: 10000
+      SERVICE_OPTS: '-Xmx1G -Dhive.metastore.uris=thrift://hive-metastore:9083'
+      IS_RESUME: 'true'
+      SERVICE_NAME: 'hiveserver2'
+    ports:
+      - '10000:10000'
+      - '10002:10002'
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+
+  trino:
+    hostname: trino
+    image: 'trinodb/trino:latest'
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./etc/catalog:/etc/trino/catalog
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+
+volumes:
+  minio:
+    driver: local
+
+networks:
+  oss_gharchivedata_orchestration_airflow_default:
+    external: true
