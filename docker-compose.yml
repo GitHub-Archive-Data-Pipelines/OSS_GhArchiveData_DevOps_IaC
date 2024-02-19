@@ -74,12 +74,32 @@ services:
       - oss_gharchivedata_orchestration_airflow_default
 
   trino:
-    hostname: trino
+    hostname: trino 
     image: 'trinodb/trino:latest'
     ports:
       - '8080:8080'
     volumes:
       - ./etc/catalog:/etc/trino/catalog
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+
+  dremio:
+    platform: linux/x86_64
+    image: dremio/dremio-oss:latest
+    ports:
+      - 9047:9047
+      - 31010:31010
+      - 32010:32010
+      - 45678:45678
+    container_name: dremio
+    networks:
+      - oss_gharchivedata_orchestration_airflow_default
+    
+  nessie:
+    image: projectnessie/nessie
+    container_name: nessie
+    ports:
+      - "19120:19120"
     networks:
       - oss_gharchivedata_orchestration_airflow_default
 
