@@ -122,10 +122,8 @@ services:
       - oss_gharchivedata_orchestration_airflow_default
 
   apache-superset:
-    image: apache/superset
-    container_name: superset  
-    environment:
-      - SUPERSET_SECRET_KEY=gJsA0bqlMARC2X3VYMSsPUNM41Za2dkveN67+PVHashc3sUSrl+fSOZ4
+    image: alexmerced/dremio-superset
+    container_name: superset
     ports:
       - "8088:8088"
     networks:
